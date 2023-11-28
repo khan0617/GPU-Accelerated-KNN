@@ -1,0 +1,3 @@
+.vscode
+*.o
+gpu_knn
