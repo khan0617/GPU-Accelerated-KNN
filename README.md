@@ -35,5 +35,5 @@ Be sure to clone this repository or download the zip before starting.
 >>> distances, indices = gpu_knn.predict(X[-1])
 ```
 
-### CUDA C++ interface (`cpp/` directory)
+### CUDA C++ interface (`cuda/` directory)
 TODO
