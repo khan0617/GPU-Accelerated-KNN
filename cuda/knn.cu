@@ -24,8 +24,15 @@ __global__ void argsort_kernel(float *distances, float *indices) {
  *  ex: distances[0] is the distance between data[0] and query point.
 */
 __global__ void euclidean_distance_kernel(float *data, float *distances) {
-    // TODO
-    return;
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < NUM_SONGS) {
+        float sum = 0;
+        for (int i = 0; i < NUM_SONG_FEATURES; i++) {
+            float diff = data[idx * NUM_SONG_FEATURES + i] - query_c[i];
+            sum += diff * diff;
+        }
+        distances[idx] = sqrt(sum);
+    }
 }
 
 /**
@@ -35,8 +42,14 @@ __global__ void euclidean_distance_kernel(float *data, float *distances) {
  * @param distances The output vector
 */
 __global__ void manhattan_distance_kernel(float *data, float *distances) {
-    // TODO
-    return;
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < NUM_SONGS) {
+        float sum = 0;
+        for (int i = 0; i < NUM_SONG_FEATURES; i++) {
+            sum += abs(data[idx * NUM_SONG_FEATURES + i] - query_c[i]);
+        }
+        distances[idx] = sum;
+    }    
 }
 
 /**
@@ -48,8 +61,6 @@ __global__ void manhattan_distance_kernel(float *data, float *distances) {
  * @param h_indices The indices of the k-nearest-neighbors will be loaded here
 */
 void knn(float *h_query, float *d_data, distance_metric_t dist_metric, float *h_distances, float *h_indices) {
-    printf("hey from knn host function!\n");
-
     // allocate device memory for the distances and indices
     float *d_distances, *d_indices;
     cudaMalloc((void **)&d_distances, sizeof(float) * NUM_SONGS);
@@ -64,9 +75,11 @@ void knn(float *h_query, float *d_data, distance_metric_t dist_metric, float *h_
     // launch the appropriate distance kernel
     switch(dist_metric) {
         case EUCLIDEAN:
+            printf("Calling Euclidean kernel...\n");
             euclidean_distance_kernel<<<num_blocks, BLOCK_SIZE>>>(d_data, d_distances);
             break;
         case MANHATTAN:
+            printf("Calling Manhattan kernel...\n");
             manhattan_distance_kernel<<<num_blocks, BLOCK_SIZE>>>(d_data, d_distances);
             break;
     }

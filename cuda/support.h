@@ -4,7 +4,7 @@
 
 #define NUM_SONGS 170653
 #define NUM_SONG_FEATURES 9
-#define NUM_NEIGHBORS 5  // 5 nearest neighbors
+#define NUM_NEIGHBORS 10 // how many nearest neighbors to get
 
 typedef enum {
     EUCLIDEAN = 0,
