@@ -1,39 +1,26 @@
-# Compiler settings
-CXX = g++
-NVCC = nvcc
-# NVCC_FLAGS = -I/usr/local/cuda/include -gencode=arch=compute_60,code=\"sm_60\"
-LD_FLAGS = -lcudart -L/usr/local/cuda/lib64
-
-# If "dbg" is defined, add debugging flags, else optimize
+NVCC        = nvcc
+NVCC_FLAGS  = -I/usr/local/cuda/include -gencode=arch=compute_60,code=\"sm_60\" -std=c++11
 ifdef dbg
-	NVCC_FLAGS += -g -G
-	CXXFLAGS += -g
+	NVCC_FLAGS  += -g -G
 else
-	NVCC_FLAGS += -O2
-	CXXFLAGS += -O2
+	NVCC_FLAGS  += -O3
 endif
 
-# Executable and objects
-EXE = gpu_knn
-OBJ = main.o
-# CUDA_OBJ = <cuda-objects>.o  # Add CUDA object files here later
+LD_FLAGS    = -lcudart -L/usr/local/cuda/lib64
+EXE	        = gpu_knn
+OBJ	        = main.o knn.o
+HEADERS		= support.h knn.h
 
-# Default target
 default: $(EXE)
 
-# Main target
-main.o: main.cpp
-	$(CXX) -c -o $@ main.cpp $(CXXFLAGS)
+main.o: main.cpp knn.cu $(HEADERS)
+	$(NVCC) -c -o $@ main.cpp $(NVCC_FLAGS)
 
-# Example CUDA object file compilation
-# <cuda-objects>.o: <cuda-source>.cu <cuda-headers>.h
-#	$(NVCC) -c -o $@ <cuda-source>.cu $(NVCC_FLAGS)
+knn.o: knn.cu $(HEADERS)
+	$(NVCC) -c -o $@ knn.cu $(NVCC_FLAGS)
 
-# Linking
-$(EXE): $(OBJ) # $(CUDA_OBJ)
-	$(CXX) $(OBJ) -o $(EXE) $(LD_FLAGS) $(NVCC_FLAGS)
+$(EXE): $(OBJ)
+	$(NVCC) $(OBJ) -o $(EXE) $(LD_FLAGS) $(NVCC_FLAGS)
 
 clean:
 	rm -rf *.o $(EXE)
-
-.PHONY: default clean
