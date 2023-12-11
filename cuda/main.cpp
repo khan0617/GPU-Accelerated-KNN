@@ -64,11 +64,12 @@ int main() {
         return 1;
     }
 
-    int query_index = 9;
+    int query_index = 120000;
     float *query = get_query_array(query_index, data);
     float *h_distances = new float[NUM_NEIGHBORS];
     float *h_indices = new float[NUM_NEIGHBORS];
     float *d_data = copy_data_to_device(data, NUM_SONGS * NUM_SONG_FEATURES);
+    distance_index_t *h_distance_index = new distance_index_t[NUM_NEIGHBORS];
 
     // print the first 10 rows of the matrix
     printf("\nFirst 10 rows of data matrix:\n");
@@ -91,8 +92,12 @@ int main() {
     printf("\n\n");
 
     // call the knn algorithm to launch the GPU kernels
-    knn(query, d_data, EUCLIDEAN, h_distances, h_indices);
+    knn(query, d_data, EUCLIDEAN, h_distance_index);
 
+    printf("CUDA distances/indices for query_index = %d\n", query_index);
+    for (int i=0; i < 7; i++) {
+        printf("i=%d, distance=%f, index_into_data=%d\n", i, h_distance_index[i].distance, h_distance_index[i].index);
+    }
     // cleanup
     delete[] data;
     delete[] h_distances;

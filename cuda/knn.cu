@@ -4,15 +4,38 @@
 #define BLOCK_SIZE 256
 __constant__ float query_c[NUM_SONG_FEATURES];
 
-
 /**
  * Return the indices that would sort the distances array.
  * 
- * @param distances Device array of knn distances across the whole dataset
- * @param indices Output vector
+ * @param distance_index The array of structs which holds the distance to the query and the index of that song
+ * @param size The number of values grouped for the current sorting
+ * @param width The distance between distance_index entries that are being compared
 */
-__global__ void argsort_kernel(float *distances, float *indices) {
-    // TODO
+__global__ void bitonicsort_kernel(distance_index_t *distance_index, int size, int width) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    
+    bool sorting_thread = (idx % width) < (width / 2);
+    int relative_idx = idx % (2*size);
+
+    if (sorting_thread) {
+        if (relative_idx < size) { //sort descending 
+            if (distance_index[idx].distance > distance_index[idx + (width / 2)].distance) {
+                // idx is larger than idx + w/2 so swap idx further down (descending)
+                distance_index_t temp = distance_index[idx];
+                distance_index[idx] = distance_index[idx + (width / 2)];
+                distance_index[idx + (width / 2)] = temp;
+            }
+        }
+        else { //sort ascending
+            if (distance_index[idx].distance < distance_index[idx + (width / 2)].distance) {
+                // idx is smaller than idx + w/2 so swap idx further up (ascending)
+                distance_index_t temp = distance_index[idx];
+                distance_index[idx] = distance_index[idx + (width / 2)];
+                distance_index[idx + (width / 2)] = temp;
+            }
+            // here is where equivalent values will do nothing
+        }
+    }
     return;
 }
 
@@ -23,7 +46,7 @@ __global__ void argsort_kernel(float *distances, float *indices) {
  * @param distances The output vector
  *  ex: distances[0] is the distance between data[0] and query point.
 */
-__global__ void euclidean_distance_kernel(float *data, float *distances) {
+__global__ void euclidean_distance_kernel(float *data, distance_index_t *distance_index) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < NUM_SONGS) {
         float sum = 0;
@@ -31,7 +54,12 @@ __global__ void euclidean_distance_kernel(float *data, float *distances) {
             float diff = data[idx * NUM_SONG_FEATURES + i] - query_c[i];
             sum += diff * diff;
         }
-        distances[idx] = sqrt(sum);
+        distance_index[idx].distance = sqrt(sum);
+        distance_index[idx].index = idx;
+    }
+    if (idx >= NUM_SONGS) {
+        distance_index[idx].distance = MAX_DISTANCE;
+        distance_index[idx].index = -1;
     }
 }
 
@@ -41,15 +69,20 @@ __global__ void euclidean_distance_kernel(float *data, float *distances) {
  * @param data Flattened dataset
  * @param distances The output vector
 */
-__global__ void manhattan_distance_kernel(float *data, float *distances) {
+__global__ void manhattan_distance_kernel(float *data, distance_index_t *distance_index) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < NUM_SONGS) {
         float sum = 0;
         for (int i = 0; i < NUM_SONG_FEATURES; i++) {
             sum += abs(data[idx * NUM_SONG_FEATURES + i] - query_c[i]);
         }
-        distances[idx] = sum;
-    }    
+        distance_index[idx].distance = sum;
+        distance_index[idx].index = idx;
+    }
+    if (idx >= NUM_SONGS) {
+        distance_index[idx].distance = MAX_DISTANCE;
+        distance_index[idx].index = -1;
+    }
 }
 
 /**
@@ -60,42 +93,46 @@ __global__ void manhattan_distance_kernel(float *data, float *distances) {
  * @param h_distances The k-nearest-neighbor distances will be loaded here after computation
  * @param h_indices The indices of the k-nearest-neighbors will be loaded here
 */
-void knn(float *h_query, float *d_data, distance_metric_t dist_metric, float *h_distances, float *h_indices) {
+void knn(float *h_query, float *d_data, distance_metric_t dist_metric, distance_index_t *h_distance_index) {
     // allocate device memory for the distances and indices
-    float *d_distances, *d_indices;
-    cudaMalloc((void **)&d_distances, sizeof(float) * NUM_SONGS);
-    cudaMalloc((void **)&d_indices, sizeof(float) * NUM_SONGS);
 
-    // every thread will acces the query features, so store it as constant memory
+    distance_index_t *d_distance_index;
+    cudaMalloc((void **)&d_distance_index, sizeof(distance_index_t) * NUM_BIOTONIC);
+
+    // every thread will access the query features, so store it as constant memory
     cudaMemcpyToSymbol(query_c, h_query, NUM_SONG_FEATURES * sizeof(float)); 
 
     // each thread handles the distance calculation for 1 song, which is a single row of featuers
-    int num_blocks = (NUM_SONGS + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    int num_blocks = (NUM_BIOTONIC + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     // launch the appropriate distance kernel
     switch(dist_metric) {
         case EUCLIDEAN:
             printf("Calling Euclidean kernel...\n");
-            euclidean_distance_kernel<<<num_blocks, BLOCK_SIZE>>>(d_data, d_distances);
+            euclidean_distance_kernel<<<num_blocks, BLOCK_SIZE>>>(d_data, d_distance_index);
             break;
         case MANHATTAN:
             printf("Calling Manhattan kernel...\n");
-            manhattan_distance_kernel<<<num_blocks, BLOCK_SIZE>>>(d_data, d_distances);
+            manhattan_distance_kernel<<<num_blocks, BLOCK_SIZE>>>(d_data, d_distance_index);
             break;
     }
     
-    // get the sorted indices
-    argsort_kernel<<<num_blocks, BLOCK_SIZE>>>(d_distances, d_indices);
+    // get the sorted indices. Size is the number of values being sorted at this iteration
+    for (int size = 2; size <= NUM_BIOTONIC; size *= 2) {
+        // width is the breath of the comparisons
+        for(int width = size; width >= 2; width /= 2) {
+            bitonicsort_kernel<<<num_blocks, BLOCK_SIZE>>>(d_distance_index, size, width);
+        }
+    }
+
     cudaDeviceSynchronize();
 
-    // copy NUM_NEIGHBORS items back to h_distances and h_indices
-    cudaMemcpy(h_distances, d_distances, sizeof(float) * NUM_NEIGHBORS, cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_indices, d_indices, sizeof(float) * NUM_NEIGHBORS, cudaMemcpyDeviceToHost);
+    // copy NUM_NEIGHBORS items back to the distance_index array
+    cudaMemcpy(h_distance_index, d_distance_index, sizeof(distance_metric_t) * NUM_NEIGHBORS * 2, cudaMemcpyDeviceToHost);
 
     // cleanup
-    cudaFree(d_distances);
-    cudaFree(d_indices);
     cudaFree(d_data);
+    cudaFree(d_distance_index);
 }
 
 /**
