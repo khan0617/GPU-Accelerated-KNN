@@ -1,19 +1,45 @@
 # GPU-Accelerated-KNN
-(In progress) Implemention of the KNearestNeighbors algorithm, accelerated with CUDA C++ and Python with Numba.
+Implemention of the KNearestNeighbors algorithm, accelerated with CUDA C++ and in Python with Numba. The CUDA implementation parallelizes the sorting of distances using [Bitonic Sort (GPU Gems 2 section 46.4.1)](https://developer.nvidia.com/gpugems/gpugems2/part-vi-simulation-and-numerical-algorithms/chapter-46-improved-gpu-sorting)
 
 ## Performance Improvements
 insert a plot showing speedups here 
 
 ## Before Starting
-Important notes:
-- The code was tested on machines running Ubuntu with nvcc version {???} and CUDA version {???}.
-- The python code was developed using python 3.11.
-- You will need to have a machine with an NVIDIA GPU, and nvcc installed for the CUDA code to compile.
+CUDA Notes:
+- The CUDA/C++ code was tested on machines running Red Hat Enterprise Linux (Maipo release 7.9).
+- CUDA Toolkit / NVCC version release 10.1, version V10.1.243.
+- You will need to have a machine with an NVIDIA GPU and nvcc installed for the CUDA code to compile.
+
+Python Notes:
+- You will need to have `cuda toolkit` installed on your system.
+- Recommended setup process is as follows, using [conda](https://www.anaconda.com/). This installs python dependencies as well as the cuda toolkit.
+```
+conda create -n gpu_knn
+conda activate gpu_knn
+conda install cuda -c nvidia
+pip install -r requirements.txt
+```
 
 ## Usage
 You can use the accelerated KNN implementation via the C++ interface or the python interface.
 
 Be sure to clone this repository or download the zip before starting.
+
+### CUDA C++ KNN interface (`cuda/` directory)
+The CUDA code currently runs using the provided `normalized_knn_data.csv` file. To use your own file, be sure to edit the constants in `support.h` to match your dataset:
+```
+#define NUM_RECORDS 170653  // how many points in the dataset (likely the number of rows in a csv.)
+#define NUM_BIOTONIC 262144 // Smallest power of 2 that holds NUM_RECORDS
+#define NUM_DATA_FEATURES 9 // how many features each point in dataset has (number of columns in a csv.)
+#define NUM_NEIGHBORS 10    // how many nearest neighbors to get
+#define MAX_DISTANCE 20
+#define DATASET_FILENAME "normalized_knn_data.csv"
+```
+1. Build the executable: `make`
+    - Depending on your system architecture and environment variables, you may need to modify `NVCC_FLAGS` in the `Makefile`.
+2. Run the program: `./gpu_knn <query_index>`
+    - `query_index` is the row of the dataset which you want to use as the query.
+    - Results will be printed to the terminal.
 
 ### Python interface (`python/` directory)
 1. Install the dependencies (numba, numpy, etc.): `pip install -r requirements.txt`
@@ -36,7 +62,4 @@ Be sure to clone this repository or download the zip before starting.
 ```
 
 ### Alternative Testing
-- Run `test_gpu_knn.py` to try out the GpuKNeighbors. This file just implements the above usage pattern. Change `query_index` to try out different queries.
-
-### CUDA C++ interface (`cuda/` directory)
-TODO
+- Run `test_gpu_knn.py` to try out the GpuKNeighbors. This file just implements the above usage example. Change `query_index` to try out different queries.
