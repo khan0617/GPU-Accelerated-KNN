@@ -21,11 +21,11 @@ Be sure to clone this repository or download the zip before starting.
 3. Here's how `GpuKNeighbors` might be used, assuming you read data in from a csv:
 
 ```
->>> import pandas as pd
+>>> import numpy as np
 >>> from gpu_kneighbors import GpuKNeighbors
 
 >>> # data should be a normalized, numerical only numpy array.
->>> X = pandas.read_csv('data.csv').to_numpy()
+>>> X = np.genfromtxt('data.csv', delimiter=',')
 
 >>> # initialize the learner to find the 5 nearest neighbors with the data
 >>> gpu_knn = GpuKNeighbors(k=5)
@@ -34,6 +34,9 @@ Be sure to clone this repository or download the zip before starting.
 >>> # get the distances and indices of kneighbors for the last element of X
 >>> distances, indices = gpu_knn.predict(X[-1])
 ```
+
+### Alternative Testing
+- Run `test_gpu_knn.py` to try out the GpuKNeighbors. This file just implements the above usage pattern. Change `query_index` to try out different queries.
 
 ### CUDA C++ interface (`cuda/` directory)
 TODO

@@ -1,3 +1,5 @@
 .vscode
 *.o
 gpu_knn
+__pycache__
+*.pyc
