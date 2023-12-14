@@ -1,5 +1,7 @@
 # GPU-Accelerated-KNN
-Implemention of the KNearestNeighbors algorithm, accelerated with CUDA C++ and in Python with Numba. The CUDA implementation parallelizes the sorting of distances using [Bitonic Sort (GPU Gems 2 section 46.4.1)](https://developer.nvidia.com/gpugems/gpugems2/part-vi-simulation-and-numerical-algorithms/chapter-46-improved-gpu-sorting)
+Implemention of the KNearestNeighbors algorithm, accelerated by over **450x** with CUDA C++ and **40x** in Python with Numba. The CUDA implementation parallelizes the sorting of distances using [Bitonic Sort (GPU Gems 2 section 46.4.1)](https://developer.nvidia.com/gpugems/gpugems2/part-vi-simulation-and-numerical-algorithms/chapter-46-improved-gpu-sorting)
+
+This project is used to accelerate computation for another project: https://github.com/khan0617/Music-Recommender.
 
 ## Performance Improvements
 insert a plot showing speedups here 
