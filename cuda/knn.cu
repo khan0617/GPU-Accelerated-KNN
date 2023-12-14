@@ -2,12 +2,12 @@
 #include "support.h"
 
 #define BLOCK_SIZE 256
-__constant__ float query_c[NUM_SONG_FEATURES];
+__constant__ float query_c[NUM_DATA_FEATURES];
 
 /**
  * Return the indices that would sort the distances array.
  * 
- * @param distance_index The array of structs which holds the distance to the query and the index of that song
+ * @param distance_index The array of structs which holds the distance to the query and the index of that record
  * @param size The number of values grouped for the current sorting
  * @param width The distance between distance_index entries that are being compared
 */
@@ -42,22 +42,22 @@ __global__ void bitonicsort_kernel(distance_index_t *distance_index, int size, i
 /**
  * Calculate the euclidean distance between query (in constant memory) and every point in the dataset.
  * 
- * @param data Flattened dataset with NUM_SONGS * NUM_SONG_FEATURES elements.
- * @param distances The output vector
- *  ex: distances[0] is the distance between data[0] and query point.
+ * @param data Flattened dataset with NUM_RECORDS * NUM_DATA_FEATURES elements.
+ * @param distance_index Output vector, each struct holds its distance and original index in the dataset. 
+ *  ex: distances[0].distance is the distance between data[0] and the query point.
 */
 __global__ void euclidean_distance_kernel(float *data, distance_index_t *distance_index) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < NUM_SONGS) {
+    if (idx < NUM_RECORDS) {
         float sum = 0;
-        for (int i = 0; i < NUM_SONG_FEATURES; i++) {
-            float diff = data[idx * NUM_SONG_FEATURES + i] - query_c[i];
+        for (int i = 0; i < NUM_DATA_FEATURES; i++) {
+            float diff = data[idx * NUM_DATA_FEATURES + i] - query_c[i];
             sum += diff * diff;
         }
         distance_index[idx].distance = sqrt(sum);
         distance_index[idx].index = idx;
     }
-    if (idx >= NUM_SONGS) {
+    if (idx >= NUM_RECORDS) {
         distance_index[idx].distance = MAX_DISTANCE;
         distance_index[idx].index = -1;
     }
@@ -67,31 +67,30 @@ __global__ void euclidean_distance_kernel(float *data, distance_index_t *distanc
  * Calculate the manhattan distance between query (in constant memory) and every point in the dataset.
  * 
  * @param data Flattened dataset
- * @param distances The output vector
+ * @param distance_index Output vector of distance/index pairs.
 */
 __global__ void manhattan_distance_kernel(float *data, distance_index_t *distance_index) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < NUM_SONGS) {
+    if (idx < NUM_RECORDS) {
         float sum = 0;
-        for (int i = 0; i < NUM_SONG_FEATURES; i++) {
-            sum += abs(data[idx * NUM_SONG_FEATURES + i] - query_c[i]);
+        for (int i = 0; i < NUM_DATA_FEATURES; i++) {
+            sum += abs(data[idx * NUM_DATA_FEATURES + i] - query_c[i]);
         }
         distance_index[idx].distance = sum;
         distance_index[idx].index = idx;
     }
-    if (idx >= NUM_SONGS) {
+    if (idx >= NUM_RECORDS) {
         distance_index[idx].distance = MAX_DISTANCE;
         distance_index[idx].index = -1;
     }
 }
 
 /**
- * Launch the appropriate kernels and return distances, indices.
+ * Calculate the K-nearest-neighbors for h_query, load the result into h_distance_index.
  * 
  * @param h_query Host array representing the query (the record we want the k-neighbors for)
- * @param d_data Flattened, normalized song data, loaded onto the GPU
- * @param h_distances The k-nearest-neighbor distances will be loaded here after computation
- * @param h_indices The indices of the k-nearest-neighbors will be loaded here
+ * @param d_data Flattened, normalized dataset, loaded onto the GPU
+ * @param h_distance_index Output vector. Sorted distances and indices for KNeighbors will be loaded back to the host.
 */
 void knn(float *h_query, float *d_data, distance_metric_t dist_metric, distance_index_t *h_distance_index) {
     // allocate device memory for the distances and indices
@@ -100,9 +99,9 @@ void knn(float *h_query, float *d_data, distance_metric_t dist_metric, distance_
     cudaMalloc((void **)&d_distance_index, sizeof(distance_index_t) * NUM_BIOTONIC);
 
     // every thread will access the query features, so store it as constant memory
-    cudaMemcpyToSymbol(query_c, h_query, NUM_SONG_FEATURES * sizeof(float)); 
+    cudaMemcpyToSymbol(query_c, h_query, NUM_DATA_FEATURES * sizeof(float)); 
 
-    // each thread handles the distance calculation for 1 song, which is a single row of featuers
+    // each thread handles the distance calculation for 1 record, which is a single row of features
     int num_blocks = (NUM_BIOTONIC + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     // launch the appropriate distance kernel
@@ -136,9 +135,9 @@ void knn(float *h_query, float *d_data, distance_metric_t dist_metric, distance_
 }
 
 /**
- * Create a new device array and copy the song data onto the device.
+ * Create a new device array and copy the data onto the device.
  * 
- * @param flattened_host_data 1D array for all song data, stored on the host
+ * @param flattened_host_data 1D array for all data, stored on the host
  * @param num_elements The number of elements in flattened_host_data
 */
 float *copy_data_to_device(float *flattened_host_data, int num_elements) {

@@ -7,11 +7,12 @@
 #include "knn.h"
 
 /**
- * Get an array of size NUM_SONGS * NUM_SONG_FEATURES filled with song data.
- *  To access song i's features, use: data[i * NUM_SONG_FEATURES + j]
- *  where 0 <= j < NUM_SONG_FEATURES.
+ * Get an array of size NUM_RECORDS * NUM_DATA_FEATURES filled with song data.
+ *  To access song i's features, use: data[i * NUM_DATA_FEATURES + j]
+ *  where 0 <= j < NUM_DATA_FEATURES.
  * 
- * @param filename filename of CSV file containing normalized song feature data
+ * @param filename filename of CSV file containing normalized dataset. 
+ *  Each row is a record, each column is a feature of that record.
 */
 float *readCSV(const std::string& filename) {
     std::ifstream file(filename);
@@ -21,7 +22,7 @@ float *readCSV(const std::string& filename) {
     }
 
     // allocate one big array for the song data
-    float *data = new float[NUM_SONGS * NUM_SONG_FEATURES];
+    float *data = new float[NUM_RECORDS * NUM_DATA_FEATURES];
     if (data == nullptr) {
         std::cerr << "Memory allocation failed." << std::endl;
         return nullptr;
@@ -42,23 +43,22 @@ float *readCSV(const std::string& filename) {
 }
 
 /**
- * Return a newly allocated float[NUM_SONG_FEATURES], filled with features of the song at "index".
+ * Return a newly allocated float[NUM_DATA_FEATURES], filled with features of the song at "index".
  * 
  * @param index Index of the song in the dataset. ex: if index == 5, return the array of song 5's features.
  * @param data 1D array storing song data.
 */
 float *get_query_array(int index, float *data) {
-    float *query = new float[NUM_SONG_FEATURES];
-    for (int i = 0; i < NUM_SONG_FEATURES; i++) {
-        query[i] = data[index * NUM_SONG_FEATURES + i];
+    float *query = new float[NUM_DATA_FEATURES];
+    for (int i = 0; i < NUM_DATA_FEATURES; i++) {
+        query[i] = data[index * NUM_DATA_FEATURES + i];
     }
     return query;
 }
 
 int main() {
     // read the data into a big 1D array
-    std::string filename = "normalized_knn_data.csv";
-    float *data = readCSV(filename);
+    float *data = readCSV(DATASET_FILENAME);
 
     if (data == nullptr) {
         return 1;
@@ -68,16 +68,16 @@ int main() {
     float *query = get_query_array(query_index, data);
     float *h_distances = new float[NUM_NEIGHBORS];
     float *h_indices = new float[NUM_NEIGHBORS];
-    float *d_data = copy_data_to_device(data, NUM_SONGS * NUM_SONG_FEATURES);
+    float *d_data = copy_data_to_device(data, NUM_RECORDS * NUM_DATA_FEATURES);
     distance_index_t *h_distance_index = new distance_index_t[NUM_NEIGHBORS];
 
     // print the first 10 rows of the matrix
     printf("\nFirst 10 rows of data matrix:\n");
     for (int i = 0; i < 10; ++i) {
         printf("song %d: ", i);
-        for (int j = 0; j < NUM_SONG_FEATURES; ++j) {
-            printf("%.6f", data[i * NUM_SONG_FEATURES + j]);
-            if (j < NUM_SONG_FEATURES - 1) {
+        for (int j = 0; j < NUM_DATA_FEATURES; ++j) {
+            printf("%.6f", data[i * NUM_DATA_FEATURES + j]);
+            if (j < NUM_DATA_FEATURES - 1) {
                 printf(", ");
             }
         }
@@ -86,7 +86,7 @@ int main() {
 
     // let's make sure query is correct
     printf("\nquery : ", query_index);
-    for (int i = 0; i < NUM_SONG_FEATURES; i++) {
+    for (int i = 0; i < NUM_DATA_FEATURES; i++) {
         printf("%.6f, ", query[i]);
     }
     printf("\n\n");
@@ -98,6 +98,7 @@ int main() {
     for (int i=0; i < 7; i++) {
         printf("i=%d, distance=%f, index_into_data=%d\n", i, h_distance_index[i].distance, h_distance_index[i].index);
     }
+
     // cleanup
     delete[] data;
     delete[] h_distances;
