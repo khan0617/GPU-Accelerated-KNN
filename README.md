@@ -4,7 +4,7 @@ Implemention of the KNearestNeighbors algorithm, accelerated by over **450x** wi
 This project is used to accelerate computation for another project: https://github.com/khan0617/Music-Recommender.
 
 ## Performance Improvements
-Laptop Results            |  GPU Desktop Results
+3050Ti Laptop Results            |  GPU Desktop Results
 :-------------------------:|:-------------------------:
 ![](./screenshots/execution_times_laptop_ms.png)  |  ![](./screenshots/execution_times_lab_machines_ms.png)
 
